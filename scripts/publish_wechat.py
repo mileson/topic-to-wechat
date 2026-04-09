@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 微信公众号草稿发布入口脚本。
-news-to-wechat 内置，不依赖 content-publisher。
+topic-to-wechat 内置，不依赖 content-publisher。
 
 用法:
   python3 publish_wechat.py publish --workspace /path/to/workspace
@@ -42,7 +42,7 @@ def cmd_status(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="WeChat Official Account publisher (news-to-wechat)"
+        description="WeChat Official Account publisher (topic-to-wechat)"
     )
     subparsers = parser.add_subparsers(dest="command")
 

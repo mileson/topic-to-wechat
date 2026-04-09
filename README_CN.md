@@ -1,16 +1,18 @@
 # News to WeChat
 
-> Claude Code / Cursor Skill：联网搜索最新资讯 → 生成主题文章 → 推送微信公众号草稿箱，全流程自动化。
+> Claude Code / Cursor Skill：联网搜索最新资讯 → 生成主题文章 → 推送微信公众号草稿箱，全流程自动化，零用户交互。
 
 [English](README.md)
 
 ## 功能特性
 
-- **资讯搜索 → 文章生成** — 搜索多个来源，自动生成结构化 Markdown 文章
+- **全自动流水线** — 6+1 阶段从选题到微信草稿，全程无需用户确认
+- **三风格候选稿** — 并行生成 3 份候选稿（技术专家 / 故事描述 / 幽默犀利），自动评分选最优
+- **质量评分与自动优化** — 150 分制评分体系，低于 9/10 自动优化（最多 3 轮）
 - **主题化 HTML 转换** — 将 Markdown 转为微信兼容的内联 CSS HTML，支持多主题切换
 - **封面图自动生成** — 自动生成 900×383 封面图，5 种风格预设可选
 - **微信草稿推送** — 图片上传到微信 CDN，通过官方 API 创建草稿
-- **2 套内置主题** — `tech-digest`（白底卡片编辑感）和 `news-minimal`（极简深色标题）
+- **2 套内置主题** — `tech-digest` 和 `news-minimal`（Anthropic 品牌配色）
 - **自定义主题** — 复制主题文件夹，修改 `theme.yaml` 即可
 
 ## 快速开始
@@ -24,9 +26,6 @@
 
 ```bash
 pip install mistune pygments pyyaml Pillow wechatpy cryptography requests
-
-# 可选：封面图生成需要
-pip install playwright && playwright install chromium
 ```
 
 ### 配置微信凭证
@@ -39,7 +38,7 @@ cp data/credentials.example.yaml data/credentials.yaml
 ### 使用方式（在 Claude Code 中）
 
 ```
-/news-to-wechat 今天的 AI 新闻
+/topic-to-wechat 今天的 AI 新闻
 ```
 
 或直接对话：
@@ -49,51 +48,67 @@ cp data/credentials.example.yaml data/credentials.yaml
 ## 工作流程
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌───────────────┐     ┌──────────────┐
-│  联网搜索    │────▶│  生成         │────▶│  转换为        │────▶│  推送微信     │
-│  (3-5 次)   │     │  Markdown    │     │  风格化 HTML   │     │  草稿箱      │
-└─────────────┘     └──────────────┘     └───────────────┘     └──────────────┘
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│  选题     │──▶│  标题    │──▶│  大纲    │──▶│  三风格       │──▶│  正文     │──▶│  评分    │──▶│  发布    │
+│  (自动)   │   │  (自动)  │   │  (自动)  │   │  候选稿(自动) │   │  展开     │   │  (自动)  │   │  (自动)  │
+└──────────┘   └──────────┘   └──────────┘   └──────────────┘   └──────────┘   └──────────┘   └──────────┘
 ```
 
-### 阶段 1：资讯搜索
-使用 `WebSearch` 多角度搜索 5-10 条高质量资讯。
+### 阶段 1：选题
+用户提供选题或自动抓取热门话题。
 
-### 阶段 2：文章生成
-生成包含 frontmatter（标题、副标题、作者、日期、分类）的结构化 Markdown。
+### 阶段 2：标题生成
+生成 5 个候选标题（数字 / 情绪 / 问句 / 对比 / 身份认同钩子），自动评分选最高分。
 
-### 阶段 3：HTML 转换
-```bash
-python3 scripts/md_to_styled_html.py article.md -t tech-digest -o article.html
-```
+### 阶段 3：大纲生成
+生成 3-5 个分区大纲，防虚构检查根据题材类型条件触发。
 
-### 阶段 3.5：封面图生成
-```bash
-python3 scripts/generate_cover.py article.md --style accent-bar -o cover.jpg
-```
+### 阶段 4A：三风格候选稿
+并行生成 3 份候选稿（目标正文 40-60% 长度）：
 
-### 阶段 4：推送到微信
-```bash
-python3 scripts/publish_wechat.py publish --workspace ./workspace
-```
+| 风格 | 说明 |
+|------|------|
+| 技术专家 | 精准严谨、数据驱动 |
+| 故事描述 | 场景叙事、情感共鸣 |
+| 幽默犀利 | 犀利吐槽、类比丰富 |
+
+自动评分选最优风格。
+
+### 阶段 4B：正文展开
+按最优风格展开为完整 1500-3000 字文章。
+
+### 阶段 5：质量评分
+150 分制 → 10 分制，低于 9 分自动循环优化（最多 3 轮）。
+
+### 阶段 6：排版与发布
+转换为风格化 HTML → 生成封面图 → 自动推送微信草稿箱。
 
 ## 项目结构
 
 ```
-news-to-wechat/
+topic-to-wechat/
 ├── SKILL.md                        # Skill 定义与工作流
 ├── scripts/
 │   ├── md_to_styled_html.py        # Markdown → 主题化 HTML 转换器
-│   ├── generate_cover.py           # 封面图生成器（HTML 渲染）
+│   ├── generate_cover.py           # 封面图生成器
 │   ├── publish_wechat.py           # 微信发布 CLI
 │   ├── publish/
-│   │   ├── base.py                 # 基类（凭证加载、工作区 IO）
+│   │   ├── base.py                 # 基类（凭证加载）
 │   │   └── wechat.py               # 微信 API 实现
 │   └── themes/
-│       ├── tech-digest/            # 默认主题（卡片 + 编号图标）
-│       └── news-minimal/           # 极简主题（深色标题）
+│       ├── tech-digest/            # 默认主题（Anthropic 品牌配色）
+│       └── news-minimal/           # 极简主题（Anthropic 品牌配色）
 ├── references/
 │   ├── article-templates.md        # 文章结构模板
-│   └── style-guide.md              # 主题配置指南
+│   ├── style-guide.md              # 主题配置指南
+│   ├── title-generator.md          # 标题生成规则
+│   ├── outline-guardrails.md       # 大纲护栏规则
+│   ├── quality-scoring.md          # 质量评分模型
+│   ├── writing-voice.md            # 写作语气偏好
+│   └── style-libraries/            # 3 种写作风格定义
+│       ├── technical-expert.md
+│       ├── storytelling.md
+│       └── sharp-humor.md
 ├── examples/
 │   └── sample-article.md           # 示例文章
 └── data/
@@ -137,7 +152,6 @@ news-to-wechat/
 | `Pillow` | 图片处理 |
 | `wechatpy` + `cryptography` | 微信 API 认证 |
 | `requests` | HTTP 请求 |
-| `playwright` | 封面图渲染（可选） |
 
 ## 参与贡献
 

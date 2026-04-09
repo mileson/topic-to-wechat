@@ -1,16 +1,19 @@
 ---
-name: news-to-wechat
+name: topic-to-wechat
 description: |
-  联网获取最新资讯，生成专题文章，转换为风格化 HTML（可配置主题），并推送到微信公众号草稿箱。
-  完整 pipeline：搜索资讯 → 生成 Markdown 文章 → Markdown 转风格化 HTML → 推送微信草稿。
+  全自动 6 阶段内容创作 Skill：选题 → 爆款标题 → 文章大纲 → 三风格候选稿 → 正文 → 排版 → 微信发布。
+  全流程零用户交互，Agent 自主决策所有节点，自动评分选优。
   触发场景：(1) 用户要求搜索最新资讯并生成文章，(2) 用户提到"资讯文章"、"新闻推送"、
-  "微信公众号文章"、"news to wechat"，(3) 用户给定话题要求生成公众号文章，
-  (4) 用户要求将 Markdown 转为风格化 HTML 并推送微信。
+  "微信公众号文章"、"topic to wechat"，(3) 用户给定选题要求创作公众号文章，
+  (4) 用户要求将 Markdown 转为风格化 HTML 并推送微信，
+  (5) 用户提供选题/话题要求进行内容创作。
 ---
 
 # News to WeChat
 
-联网获取最新资讯 → 生成专题文章 → 转换风格化 HTML → 推送微信公众号草稿。
+全自动 6+1 阶段内容创作：选题 → 标题 → 大纲 → 三风格候选 → 正文 → 排版 → 发布。
+
+**全流程零用户交互**，Agent 自主完成所有决策。
 
 ## 凭证规则
 
@@ -30,79 +33,155 @@ wechat_mp:
 
 禁止在代码或工作目录中硬编码凭证。
 
-## 工作流（4 阶段）
+## 工作流（6+1 阶段）
 
-### Stage 1：资讯获取
+| 阶段 | 名称 | 产出 | 自动/交互 |
+|:---:|:-----|:---------|:-------:|
+| **1** | 选题 | 选题关键词 | 自动 |
+| **2** | 标题 | 5 候选 + 评分 + 自动选定 | 自动 |
+| **3** | 大纲 | 3-5 H2 分区大纲 | 自动 |
+| **4A** | 三风格候选 | 3 份候选稿（40-60%） | 自动 |
+| **4B** | 正文展开 | 完整 Markdown 文章 | 自动 |
+| **5** | 质量评分 | 评分报告 + 自动优化 | 自动 |
+| **6** | 排版+发布 | HTML + 封面 + 微信草稿 | 自动 |
 
-使用 WebSearch 搜索用户指定话题的最新资讯。
+### Stage 1：选题
+
+确定要写的选题。支持两种入口：
+
+**入口 A — 用户提供选题**：
+1. 用户直接给出选题关键词或方向
+2. 直接进入 Stage 2
+
+**入口 B — 自动抓取选题**：
+1. 使用 WebSearch 搜索当前热门话题（3-5 次搜索覆盖不同领域）
+2. 搜索词策略：`"{领域} 最新进展 2026"` + `"{领域} 热门话题"` + `"{领域} 趋势"`
+3. 从搜索结果中自动筛选最佳选题（标准：时效性 + 话题热度 + 写作价值）
+4. 进入 Stage 2
+
+**选题筛选标准**：
+- 时效性：最近 7 天内发生的事件
+- 信息量：有足够的数据/观点支撑一篇完整文章
+- 受众面：目标读者群体会关心的话题
+
+### Stage 2：标题
+
+基于选题自动生成并选定爆款标题。
 
 **执行步骤**：
+1. 读取 [references/title-generator.md](references/title-generator.md) 获取完整规则
+2. 生成 5 个不同方向的候选标题（每种钩子各一个）
+3. 每个标题附带 1-10 分评分 + 一句话理由
+4. 按评分降序排列，**自动选择最高分标题**
+5. 直接进入 Stage 3
 
-1. 确认话题关键词（用户直接提供或交互确认）
-2. 使用 WebSearch 搜索 3-5 次，覆盖不同角度
-3. 对搜索结果去重、按相关性排序
-4. 提取 5-10 条高质量资讯条目，每条记录：标题、摘要、来源 URL、日期
+**快速规则**（无需读文件时使用）：
+- 每个标题不超过 20 字
+- 必须包含 5 种钩子之一：数字 / 情绪 / 问句 / 对比 / 身份认同
+- 禁止标题党和陈词滥调
+- 标题必须与内容实质相关
 
-**搜索策略**：
-- 优先搜索最近 7 天内容
-- 搜索词包含年份（当前 2026）确保时效性
-- 多角度搜索：`"{话题} 最新进展 2026"` + `"{话题} news latest"` + `"{话题} 趋势"`
+### Stage 3：大纲
 
-### Stage 2：生成 Markdown 文章
+自动生成文章骨架，防止跑题。
 
-将收集到的资讯整理为结构化 Markdown。
+**执行步骤**：
+1. 读取 [references/outline-guardrails.md](references/outline-guardrails.md) 获取护栏规则
+2. 基于选题 + 标题，生成 3-5 个 H2 分区大纲
+3. 每个分区标注：要点(key_points) + 数据来源(data_sources)
+4. 根据题材类型决定防虚构检查严格程度（新闻类强制，故事类可选）
+5. 直接进入 Stage 4A
 
-**文章结构**（参见 [references/article-templates.md](references/article-templates.md)）：
+**大纲格式**：
+```
+标题：[Stage 2 自动选定标题]
+核心论点：[一句话]
+题材类型：[新闻/数据类 | 故事/观点类 | 混合类]
+
+## 分区 1：[H2 标题]
+- 要点：...
+- 来源：...
+
+## 分区 2：...
+```
+
+### Stage 4A：三风格候选稿
+
+并行生成 3 种不同风格的候选稿，自动评分选最优。
+
+**执行步骤**：
+1. 读取风格库文件获取各风格写作指导：
+   - [references/style-libraries/technical-expert.md](references/style-libraries/technical-expert.md) — 技术专家：精准严谨、数据驱动
+   - [references/style-libraries/storytelling.md](references/style-libraries/storytelling.md) — 故事描述：场景叙事、情感共鸣
+   - [references/style-libraries/sharp-humor.md](references/style-libraries/sharp-humor.md) — 幽默犀利：犀利吐槽、类比丰富
+2. 基于大纲，分别为每种风格生成候选稿（目标正文 40-60% 长度）
+3. 读取 [references/quality-scoring.md](references/quality-scoring.md) 对 3 份候选稿评分
+4. **自动选择最高分风格**进入 Stage 4B
+
+**候选稿输出目录**：
+```bash
+$WORKSPACE/Output/_drafts/
+├── candidate_technical_expert.md
+├── candidate_storytelling.md
+├── candidate_sharp_humor.md
+└── scoring_report.md
+```
+
+### Stage 4B：正文展开
+
+按最优风格展开完整正文。
+
+**执行步骤**：
+1. 读取 [references/writing-voice.md](references/writing-voice.md) 获取语气风格（如有积累）
+2. 读取 [references/article-templates.md](references/article-templates.md) 获取文章结构参考
+3. 基于最优风格候选稿 + 大纲，展开完整正文
+4. 写作要求：
+   - 保持选定风格的语气和结构
+   - 每区 200-400 字
+   - 关键数据用 blockquote 突出
+   - 代码片段用代码块展示（如适用）
+   - 外部链接使用 `[文本](URL)` 格式
+   - `[待验证]` 项必须通过 WebSearch 核实
+5. 总字数控制在 1500-3000 字
+6. 生成完整 Markdown，包含 frontmatter：
 
 ```yaml
-frontmatter:
-  title: "文章标题，支持 {{高亮关键词}} 语法"
-  subtitle: 副标题（可选）
-  author: 作者名
-  date: YYYY年MM月DD日
-  category: 分类标签（显示在卡片顶部，如 "AI 前沿速递"）
-  source: 来源信息（可选，显示在日期旁）
-
-body:
-  - H2 分区（每条资讯一个 H2）
-  - 每个分区包含：背景介绍 + 核心内容 + 关键引用/代码
-  - 外部链接使用 [文本](URL) 格式
+---
+title: "[标题]"
+subtitle: "[副标题]"
+author: "[作者名]"
+date: "YYYY年MM月DD日"
+category: "[分类标签]"
+source: "[来源信息]"
+---
 ```
 
-**标题高亮语法**：用 `{{}}` 包裹需要高亮的关键词，生成 HTML 时自动渲染为主题配置的 `highlight_color`。
-示例：`"大模型与 Agent {{最新突破}}"` → "最新突破" 显示为红色。
+### Stage 5：质量评分
 
-**写作规范**：
-- 每个 H2 对应一条资讯主题
-- 开篇 1-2 句话概括要点
-- 关键数据或代码用代码块展示
-- 链接保留原始 URL，转换时自动变脚注
-- 总字数 1500-3000 字
+对完整正文自动评分，低于 9 分自动循环优化。
 
-### Stage 3：Markdown → 风格化 HTML
+**执行步骤**：
+1. 读取 [references/quality-scoring.md](references/quality-scoring.md) 获取评分体系
+2. 对正文进行 150 分制评分（→ 10 分制）
+3. **≥ 9.0 分**：通过，进入 Stage 6
+4. **< 9.0 分**：自动诊断低分维度并优化（每轮聚焦最多 3 个低分维度）
+5. 重新评分，最多循环 3 次
+6. 3 次后仍未达标：标记 best_effort，继续进入 Stage 6
 
-使用内置转换脚本将 Markdown 转为微信兼容的风格化 HTML。
+### Stage 6：排版 + 发布
 
-**脚本路径**：
+自动排版并推送到微信公众号草稿箱。**必须自动执行，禁止询问用户是否发布。**
 
-```bash
-CONVERTER="python3 ~/.cursor/skills/news-to-wechat/scripts/md_to_styled_html.py"
-```
-
-**基础用法**：
+**排版 — Markdown 转 HTML**：
 
 ```bash
+CONVERTER="python3 ~/.claude/skills/topic-to-wechat/scripts/md_to_styled_html.py"
+
 # 使用默认主题 (tech-digest) 转换
 $CONVERTER article.md -o article.html
 
 # 指定主题
 $CONVERTER article.md -t news-minimal -o article.html
-
-# 转换并预览
-$CONVERTER article.md -o article.html -p
-
-# 查看可用主题
-$CONVERTER --list-themes dummy.md
 ```
 
 **可用主题**：
@@ -112,182 +191,94 @@ $CONVERTER --list-themes dummy.md
 | `tech-digest`（默认） | 白底卡片标题 + 分类标签 + 高亮关键词 + 编号分区 | 技术资讯、AI 日报 |
 | `news-minimal` | 极简深色标题 + 圆点分区 | 新闻简报、行业分析 |
 
-**自定义主题**：复制 `scripts/themes/tech-digest/` 为新目录，修改 `theme.yaml` 即可。
-详见 [references/style-guide.md](references/style-guide.md)。
-
-**脚本输出 JSON**：
-
-```json
-{
-  "title": "文章标题",
-  "theme": "tech-digest",
-  "html_path": "/path/to/article.html",
-  "html_length": 12345
-}
-```
-
-### Stage 3.5：封面图处理
-
-微信公众号接口要求 `thumb_media_id`（封面图素材 ID），缺少封面图将导致发布失败。
-本 Skill 采用**优先级回退**策略自动处理封面：
-
-**决策流程**：
-
-```
-用户指定了封面图？
-  ├─ YES → 使用用户指定的封面（metadata.yaml 中 medias.cover.path）
-  └─ NO  → 自动生成封面图
-            ├─ 读取文章 frontmatter（title / subtitle / category）
-            ├─ 匹配当前主题配色（继承 theme.yaml 颜色）
-            ├─ 自动选择或指定风格预设
-            └─ 生成 900×383 (2.35:1) JPEG → 写入 Output/wechat/cover.jpg
-```
-
-**封面生成脚本**：
+**封面图生成**：
 
 ```bash
-COVER_GEN="python3 ~/.cursor/skills/news-to-wechat/scripts/generate_cover.py"
-
-# 从 Markdown frontmatter 读取信息，自动选择风格
+COVER_GEN="python3 ~/.claude/skills/topic-to-wechat/scripts/generate_cover.py"
 $COVER_GEN article.md -o Output/wechat/cover.jpg
-
-# 指定主题（继承配色）
-$COVER_GEN article.md -t news-minimal -o Output/wechat/cover.jpg
-
-# 指定风格预设
-$COVER_GEN article.md --style accent-bar -o Output/wechat/cover.jpg
-
-# 从 metadata.yaml 读取信息
-$COVER_GEN --metadata Output/wechat/metadata.yaml -o Output/wechat/cover.jpg
-
-# 查看可用风格
-$COVER_GEN --list-styles
 ```
 
-**可用封面风格**：
+**发布**：
 
-| 风格 | 说明 | 适用场景 |
-|------|------|---------|
-| `auto`（默认） | 根据标题长度和分类自动选择 | 通用 |
-| `gradient` | 渐变背景 + 标题居中 | 长标题、通用资讯 |
-| `accent-bar` | 深色背景 + 左侧强调条 + 左对齐 | 技术类、AI 类 |
-| `split` | 左文右色块双栏 | 对比类、VS 类 |
-| `minimal` | 纯色背景 + 大标题 | 短标题 |
-| `geometric` | 几何装饰 + 分类标签 | 编辑感、资讯类 |
-
-**脚本输出 JSON**：
-
-```json
-{
-  "style": "accent-bar",
-  "theme": "tech-digest",
-  "size": "900x383",
-  "output_path": "/path/to/cover.jpg",
-  "file_size": 38100
-}
+前置文件：
+```
+workspace/Output/wechat/
+├── article.html      ← 排版输出
+├── cover.jpg          ← 封面图
+└── metadata.yaml     ← 自动生成
 ```
 
-**生成封面后必须更新 `metadata.yaml`**，添加 `medias.cover.path` 字段：
-
+**metadata.yaml 格式**：
 ```yaml
+platform:
+  id: wechat
+  display_name: 微信公众号
+article:
+  title: "文章标题"
+  digest: "文章摘要（120字节内）"
+author:
+  name: "作者名"
 medias:
   cover:
     path: "cover.jpg"
 ```
 
-### Stage 4：推送微信公众号草稿
-
-使用内置微信发布脚本（独立副本，不依赖 content-publisher）。
-
-**前置准备**：
-
-1. 在工作目录下创建 `Output/wechat/` 结构：
-   ```
-   workspace/
-   ├── Output/wechat/
-   │   ├── article.html      ← Stage 3 输出
-   │   ├── cover.jpg          ← Stage 3.5 输出（用户指定或自动生成）
-   │   └── metadata.yaml     ← 自动生成
-   ```
-
-2. `metadata.yaml` 格式：
-   ```yaml
-   platform:
-     id: wechat
-     display_name: 微信公众号
-   article:
-     title: "文章标题"
-     digest: "文章摘要（120字节内）"
-   author:
-     name: "作者名"
-   medias:
-     cover:
-       path: "cover.jpg"
-   ```
-
-**发布命令**：
+**发布命令**（自动执行，无需确认）：
 
 ```bash
-PUBLISHER="python3 ~/.cursor/skills/news-to-wechat/scripts/publish_wechat.py"
+PUBLISHER="python3 ~/.claude/skills/topic-to-wechat/scripts/publish_wechat.py"
 
-# 创建草稿（默认安全模式）
-$PUBLISHER publish --workspace <workspace_path>
-
-# 创建草稿并自动发布（需谨慎）
+# 直接创建草稿并发布
 $PUBLISHER publish --workspace <workspace_path> --auto-publish
-
-# 查询发布状态
-$PUBLISHER status --workspace <workspace_path> --publish-id <PUBLISH_ID>
 ```
 
-默认行为：仅创建草稿，不自动发布。
-
-**发布流程（6 步）**：
-1. 认证 — 通过 secrets-vault 获取 `wechat_mp` 凭证
-2. 加载元数据 — 读取 `Output/wechat/metadata.yaml`
-3. 加载 HTML — 读取 `Output/wechat/article.html`
-4. 上传图片 — 扫描 HTML 中的图片，上传到微信 CDN 并替换 URL
-5. 创建草稿 — 调用 `draft/add` API
-6. 发布（可选）— 调用 `freepublish/submit` API
+> **规则**：Stage 6 必须 Agent 自动执行，禁止输出命令让用户手动执行，禁止询问"是否需要推送"。
 
 ## Agent 完整执行流程
 
-收到用户请求后，按顺序执行：
+```
+1. 判断入口 → 用户提供选题 or 自动抓取 → 自动选定选题
+2. Stage 2: 生成 5 候选标题 → 评分排序 → 自动选最高分
+3. Stage 3: 生成大纲 → 根据题材决定防虚构严格度 → 自动确认
+4. Stage 4A: 生成 3 风格候选稿 → 自动评分 → 选最优风格
+5. Stage 4B: 按最优风格展开完整正文 → Markdown 文章
+6. Stage 5: 质量评分 → 低于9分自动优化（最多3轮） → 通过
+7. Stage 6: 转换 HTML → 封面图 → 自动推送微信草稿 → 返回 draft_id
+```
 
-```
-1. 确认话题 → 用户交互或直接使用用户指定话题
-2. WebSearch 搜索资讯 → 收集 5-10 条高质量条目
-3. 生成 Markdown 文章 → 保存到临时工作目录
-4. 转换 HTML → 调用 md_to_styled_html.py
-5. 准备 Output/wechat/ 结构 → 复制 HTML + 生成 metadata.yaml
-6. 封面图处理 → 优先级回退策略：
-   a. 检查用户是否指定了封面图（metadata.yaml 中 medias.cover.path）
-   b. 如有 → 直接使用
-   c. 如无 → 调用 generate_cover.py 自动生成，并更新 metadata.yaml
-7. 调用 publish_wechat.py → 创建微信草稿
-8. 返回结果 → 报告 draft_id 和状态
-```
+**⚠️ 全流程禁止规则**：
+- 全部 6 个阶段禁止使用 AskUserQuestion 询问用户
+- 禁止在 Stage 6 询问"是否需要推送"或输出命令让用户手动执行
+- 所有决策由 Agent 自主完成，自动选最优方案
 
 **工作目录约定**：
 
 ```bash
-# 在 Shell 当前工作目录（CWD）下创建工作区
-WORKSPACE="$(pwd)/news-to-wechat-workspace/$(date +%Y%m%d-%H%M%S)"
+# 第一步：先确认用户当前所在目录
+pwd
+
+# 第二步：以选题关键词命名创建工作文件夹
+WORKSPACE="$(pwd)/{选题关键词}"
 mkdir -p "$WORKSPACE/Output/wechat"
+mkdir -p "$WORKSPACE/Output/_drafts"
 ```
 
-> **规则**：工作目录必须创建在 Agent 执行 Shell 命令时的当前工作目录下，
-> 即用户触发 Skill 时所在的文件夹。禁止使用 `$HOME` 或其他硬编码路径。
+> **规则**：
+> - 执行前必须先用 `pwd` 确认用户当前工作目录
+> - 工作文件夹以选题关键词命名（如选题为"AI编程趋势"则创建 `AI编程趋势/`）
+> - 所有创作产物必须写入此工作文件夹内
 
 ## 持久记忆
 
 本 Skill 支持持久记忆，记录用户偏好和常用话题。
 
-**读取**：每次执行前读取 `data/memory.md`（位于本 Skill 目录下）。
-**写入**：每次成功发布后追加记录，包括：
-- 用户偏好的话题领域
+**读取**：每次执行前读取 `data/memory.md`。
+**写入**：每次成功完成后追加记录：
+- 用户偏好的选题领域
 - 常用主题选择
-- 文章风格偏好
+- 标题风格偏好
+- 最优风格记录（哪种风格得分最高）
+- 写作语气偏好（同步到 [references/writing-voice.md](references/writing-voice.md)）
 
 ## 依赖
 
@@ -295,4 +286,4 @@ mkdir -p "$WORKSPACE/Output/wechat"
 - `pip install mistune pygments pyyaml`（Markdown 转 HTML）
 - `pip install Pillow`（封面图自动生成）
 - `pip install wechatpy cryptography requests`（微信发布）
-- `secrets-vault` Skill（凭证管理，微信发布唯一凭证来源）
+- `secrets-vault` Skill（凭证管理，微信发布兜底凭证来源）

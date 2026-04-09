@@ -1,1 +1,1 @@
-# news-to-wechat publish package
+# topic-to-wechat publish package
