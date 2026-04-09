@@ -1,0 +1,34 @@
+# 环境变量与凭证
+.env
+.env.local
+.env.*.local
+data/credentials.yaml
+
+# 依赖
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# 构建产物
+dist/
+build/
+Output/
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
+
+# 敏感文件
+*.pem
+*.key
+*.p12
